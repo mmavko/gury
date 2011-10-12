@@ -1,7 +1,16 @@
-Info about this fork
+About this fork
 ===
 
 This fork introduces some improvements to the original project. See the list below.
+
+
+Known issues:
+---
+
+1. "mouseenter" and "mouseleave" event's will not be triggered unless you set a handler for "mousemove".
+
+2. You cannot mix .pause() and .pause(obj) if your object uses "time" in its "update(gury, time, delta, count)".
+
 
 What is done:
 ---
