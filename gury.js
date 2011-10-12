@@ -529,7 +529,7 @@ window.$g = window.Gury = (function(window, jQuery) {
           paused: false,
           z: this.nextZ(),
           pause_duration: 0,
-          pause = function (now) {
+          pause: function (now) {
             this.paused = !this.paused;
             if (this.paused) {
               this.pause_start_timestamp = now;
