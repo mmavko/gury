@@ -15,7 +15,8 @@ What is done:
     - time (milliseconds from the beginning of the animation)
     - delta (current frame duration)
     - count (current frame number)
-All this data is calculated for the current object (i.e. if it was paused for example).
+
+	All this data is calculated for the current object (i.e. if it was paused for example).
 
 4. Gury's "play(interval)" method now has default argument. Default is 14 ms (i.e. up to 72 FPS).
 
