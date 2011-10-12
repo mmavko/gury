@@ -347,7 +347,7 @@ window.$g = window.Gury = (function(window, jQuery) {
     
     function draw(gury, object) {
       if (isFunction(object)) {
-        ob.call(gury, ctx, gury.canvas);
+        object.call(gury, ctx, gury.canvas);
       }
       else if (isObject(object) && isDefined(object.draw)) {
         object.draw(ctx, gury.canvas);
@@ -388,11 +388,16 @@ window.$g = window.Gury = (function(window, jQuery) {
         
         var isHit = false;
         if (isObjectOrFunction(object)) {
-          if (!resetContext(gury)) {
-            return false;
+          if (isFunction(object.testPosition)) {
+            isHit = object.testPosition(x, y);
           }
-          draw(gury, object);
-          isHit = testPosition(x, y);
+          else {
+            if (!resetContext(gury)) {
+              return false;
+            }
+            draw(gury, object);
+            isHit = testPosition(x, y);
+          }
         }
         
         // Finish Timing
@@ -519,7 +524,21 @@ window.$g = window.Gury = (function(window, jQuery) {
 
       // Annotate the object with gury specific members
       if (!isDefined(object._gury)) {
-        object._gury = { visible: true, paused: false, z: this.nextZ() };
+        object._gury = {
+          visible: true,
+          paused: false,
+          z: this.nextZ(),
+          pause_duration: 0,
+          pause = function (now) {
+            this.paused = !this.paused;
+            if (this.paused) {
+              this.pause_start_timestamp = now;
+            }
+            else {
+              this.pause_duration += now - this.pause_start_timestamp;
+            }
+          }
+        };
       }
 
       // Add to the rendering list
@@ -532,6 +551,11 @@ window.$g = window.Gury = (function(window, jQuery) {
         if (isDefined(object[eventName]) && isFunction(object[eventName])) {
           this.bind(object, eventName, object[eventName]);
         }
+      }
+
+      // Initialize object
+      if (isFunction(object.initialize)) {
+        object.initialize(this);
       }
       
       return this;
@@ -556,6 +580,14 @@ window.$g = window.Gury = (function(window, jQuery) {
         var gury = this;
         var removed = this._tags.remove(object);
         removed.each(function(r) {
+          // Automatic event unbinding for the object
+          var events = ['click', 'mousedown', 'mouseup', 'mousemove', 'mouseenter', 'mouseleave'];      
+          for (var e in events) {
+            var eventName = events[e];
+            if (isDefined(r[eventName]) && isFunction(r[eventName])) {
+              gury.unbind(r, eventName);
+            }
+          }
           gury._objects.remove(r);
           delete r._gury;
         });
@@ -573,10 +605,15 @@ window.$g = window.Gury = (function(window, jQuery) {
     },
     
     update: function() {
-      var gury = this;
+      var gury = this, now = Date.now(),
+          time, delta, count;
+      time  = now - gury._start_timestamp - gury._pause_duration,
+      delta = now - gury._last_frame_timestamp,
+      count = ++gury._frame_number;
+      gury._last_frame_timestamp = now;
       gury._objects.each(function(ob) {
         if (isDefined(ob.update) && !ob._gury.paused) {
-          ob.update(gury);
+          ob.update(gury, time - ob._gury.pause_duration, delta, count);
         }
       });
       return this;
@@ -625,33 +662,49 @@ window.$g = window.Gury = (function(window, jQuery) {
       // Immediately render the scene
       this.draw();
 
+      var gury = this, now = Date.now();
+
+      // Initialize private variables
+      gury._start_timestamp = now;
+      gury._frame_number = 0;
+      gury._last_frame_timestamp = now;
+      gury._pause_duration = 0;
+
       // Start the rendering / update loop  
-      var gury = this;
       this._loop_interval = setInterval(function() {
         if (!gury._paused) {
           gury.update().draw();
         }
-      }, interval);
+      }, interval || 14); // up to 72 FPS by default
       return this;
     },
     
     pause: function() {
+      var now = Date.now();
       if (arguments.length > 0) {
         for (var i = 0; i < arguments.length; i++) {
           var arg = arguments[i];
           if (isString(arg)) {
             this.each(arg, function(ob) {
-              ob._gury.paused = !ob._gury.paused;
+              ob._gury.pause(now);
             });
           }
           else if (isDefined(arg._gury)) {
-            arg._gury.paused = !arg._gury.paused;
+            arg._gury.pause(now);
           }
         }
         return this;
       }
       else {
         this._paused = !this._paused;
+        if (this._paused) {
+          this._pause_start_timestamp = now;
+        }
+        else {
+          var last_pause_duration = now - this._pause_start_timestamp;
+          this._pause_duration += last_pause_duration;
+          this._last_frame_timestamp += last_pause_duration;
+        }
         return this;
       }
     },
